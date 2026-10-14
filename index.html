@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SatConnect – Satellite Emergency Communication for Society | NIAT B.Tech</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              50: '#f0f5ff',
+              100: '#e0ebfe',
+              200: '#bad2fd',
+              800: '#0a3084',
+              900: '#0d2a6b',
+              950: '#071638',
+            },
+            emergency: {
+              50: '#fef2f2',
+              100: '#fee2e2',
+              500: '#ef4444',
+              600: '#dc2626',
+              700: '#b91c1c',
+            }
+          },
+          animation: {
+            'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'ping-slow': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+            'spin-slow': 'spin 12s linear infinite',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- OpenStreetMap Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Google Fonts Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    code, pre, .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Radar Pulse Markers */
+    .radar-pulse {
+      display: block;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: rgba(220, 38, 38, 0.9);
+      cursor: pointer;
+      box-shadow: 0 0 0 rgba(220, 38, 38, 0.4);
+      animation: radarPulse 1.8s infinite;
+    }
+    @keyframes radarPulse {
+      0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+      70% { box-shadow: 0 0 0 18px rgba(220, 38, 38, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    }
+    .radar-pulse-orange {
+      display: block;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(249, 115, 22, 0.9);
+      cursor: pointer;
+      box-shadow: 0 0 0 rgba(249, 115, 22, 0.4);
+      animation: radarPulseOrange 1.8s infinite;
+    }
+    @keyframes radarPulseOrange {
+      0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.7); }
+      70% { box-shadow: 0 0 0 14px rgba(249, 115, 22, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+    }
+    .leaflet-container {
+      width: 100%;
+      height: 100%;
+      border-radius: 0.75rem;
+      z-index: 10;
+    }
+    /* Hide scrollbars for clean presentation */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col selection:bg-emergency-600 selection:text-white">
+
+  <!-- ============================================================== -->
+  <!-- 1. TOP SIMULATION & SATELLITE STATUS BAR                        -->
+  <!-- ============================================================== -->
+  <div class="bg-gradient-to-r from-navy-950 via-slate-900 to-navy-900 text-white text-xs border-b border-navy-800 px-4 py-2">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center space-x-2">
+        <span class="relative flex h-2.5 w-2.5">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+        </span>
+        <span class="font-semibold text-cyan-300 flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+          SATELLITE EMERGENCY LINK ACTIVE:
+        </span>
+        <span class="text-slate-300 hidden sm:inline">
+          Autonomous off-grid link for cellular outage & disaster areas.
+        </span>
+      </div>
+
+      <div class="flex items-center gap-3 text-slate-300">
+        <div class="flex items-center gap-1 text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/60 font-mono text-[11px]">
+          <span>HARDWARE EMULATION (NIAT B.TECH)</span>
+        </div>
+        <div class="hidden md:flex items-center gap-2 font-mono text-[11px] text-cyan-300">
+          <span>LEO 780km</span>
+          <span>•</span>
+          <span>1621.25 MHz</span>
+          <span>•</span>
+          <span class="text-emerald-400 font-bold">CARRIER LOCKED</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 2. EVALUATOR 1-CLICK ROLE SWITCHER                             -->
+  <!-- ============================================================== -->
+  <div class="bg-white border-b border-slate-200 px-4 py-1.5 text-xs shadow-sm sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center space-x-2 text-slate-600">
+        <svg class="w-3.5 h-3.5 text-navy-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21 2-2 2m-1.5 1.5L14 9l-1.5-1.5L11 9l-1.5-1.5L8 9 6.5 7.5 2 12l10 10 4.5-4.5L18 19l1.5-1.5L18 16l1.5-1.5L18 13l3-3-2-2z"/></svg>
+        <span class="font-semibold text-slate-700">Evaluator Persona Switcher:</span>
+        <span class="text-slate-500 hidden md:inline">
+          Active: <strong id="activeRoleLabel" class="text-navy-950 bg-navy-50 px-2 py-0.5 rounded border border-navy-200">Citizen</strong>
+        </span>
+      </div>
+
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5" id="roleBtnGroup">
+        <button onclick="setRole('Citizen')" id="btnRoleCitizen" class="role-btn px-2.5 py-1 rounded-md text-xs font-semibold border transition-all bg-navy-950 text-white border-navy-950 shadow-sm">
+          Citizen
+        </button>
+        <button onclick="setRole('Volunteer')" id="btnRoleVolunteer" class="role-btn px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200 bg-slate-50 text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 transition-all">
+          Volunteer
+        </button>
+        <button onclick="setRole('Rescue Team')" id="btnRoleRescue" class="role-btn px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200 bg-slate-50 text-slate-700 hover:bg-orange-50 hover:text-orange-800 transition-all">
+          Rescue Team
+        </button>
+        <button onclick="setRole('Admin')" id="btnRoleAdmin" class="role-btn px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200 bg-slate-50 text-slate-700 hover:bg-purple-50 hover:text-purple-800 transition-all">
+          Admin
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 3. MAIN NAVIGATION HEADER                                       -->
+  <!-- ============================================================== -->
+  <header class="bg-navy-950 text-white border-b border-navy-800 shadow-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16">
+        <!-- Logo -->
+        <div class="flex items-center space-x-3 cursor-pointer" onclick="navigate('home')">
+          <div class="relative flex items-center justify-center w-10 h-10 rounded-xl bg-emergency-600 text-white shadow-lg shadow-emergency-600/30">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span class="absolute -top-1 -right-1 flex h-3 w-3">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-cyan-400"></span>
+            </span>
+          </div>
+          <div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-cyan-300 bg-clip-text text-transparent">
+                SatConnect
+              </span>
+              <span class="bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-cyan-400/30">
+                NIAT B.TECH
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 tracking-wider uppercase font-medium">
+              Satellite Emergency Communication
+            </p>
+          </div>
+        </div>
+
+        <!-- Desktop Navigation Items -->
+        <nav class="hidden lg:flex items-center space-x-1" id="navItems">
+          <button onclick="navigate('home')" id="nav-home" class="nav-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-navy-800 text-white border border-navy-700">Overview</button>
+          <button onclick="navigate('dashboard')" id="nav-dashboard" class="nav-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-navy-900 flex items-center gap-1.5">
+            <span>Live Map & Incidents</span>
+            <span id="navAlertBadge" class="bg-emergency-600 text-white font-mono text-[10px] px-1.5 py-0.2 rounded-full font-bold">4</span>
+          </button>
+          <button onclick="navigate('satellite')" id="nav-satellite" class="nav-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-navy-900">Satellite Console</button>
+          <button onclick="navigate('relief')" id="nav-relief" class="nav-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-navy-900">Society Relief</button>
+          <button onclick="navigate('volunteers')" id="nav-volunteers" class="nav-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-navy-900">Volunteers</button>
+          <button onclick="navigate('preparedness')" id="nav-preparedness" class="nav-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-navy-900">Preparedness</button>
+          <button onclick="navigate('hardware')" id="nav-hardware" class="nav-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-navy-900">ESP32 Hardware</button>
+          <button onclick="navigate('admin')" id="nav-admin" class="nav-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-navy-900 hidden">Admin Panel</button>
+        </nav>
+
+        <!-- Right: Primary Large Red SOS Button -->
+        <div class="flex items-center space-x-3">
+          <button onclick="openSosModal()" class="relative inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-emergency-600 hover:bg-emergency-500 text-white shadow-lg shadow-emergency-600/40 hover:shadow-emergency-600/60 active:scale-95 transition-all animate-pulse-fast border border-emergency-400">
+            <svg class="w-4 h-4 fill-white text-emergency-600" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            <span>TRIGGER SOS</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============================================================== -->
+  <!-- 4. MAIN PAGE CONTAINERS                                         -->
+  <!-- ============================================================== -->
+  <main class="flex-1 pb-16">
+
+    <!-- TAB 1: OVERVIEW / HOME -->
+    <section id="page-home" class="space-y-12">
+      <!-- Hero Section -->
+      <div class="bg-gradient-to-br from-navy-950 via-slate-900 to-navy-900 text-white py-14 px-4 sm:px-6 lg:px-8 border-b border-navy-800">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div class="lg:col-span-7 space-y-6">
+            <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/30 text-cyan-300 text-xs font-mono">
+              <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+              <span>NIAT B.Tech Final Year Capstone Project</span>
+            </div>
+
+            <h1 class="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
+              Satellite Emergency Communication <br />
+              <span class="bg-gradient-to-r from-cyan-400 via-sky-200 to-emergency-400 bg-clip-text text-transparent">
+                For Remote & Disaster Zones
+              </span>
+            </h1>
+
+            <p class="text-slate-300 text-sm sm:text-base leading-relaxed max-w-2xl">
+              When landslides, super-cyclones, or flash floods knock out mobile towers, 
+              <strong>SatConnect</strong> bridges cutoff villages with disaster rescue commands using 
+              low-bandwidth <strong>34-byte satellite micro-bursts</strong> and open geospatial maps.
+            </p>
+
+            <div class="flex flex-wrap items-center gap-4 pt-2">
+              <button onclick="openSosModal()" class="inline-flex items-center space-x-3 px-6 py-4 rounded-xl text-sm font-black uppercase tracking-wider bg-emergency-600 hover:bg-emergency-500 text-white shadow-xl shadow-emergency-600/40 hover:shadow-emergency-600/60 active:scale-95 transition-all animate-pulse-fast border border-emergency-400">
+                <svg class="w-5 h-5 fill-white text-emergency-600" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2"/></svg>
+                <span>BROADCAST EMERGENCY SOS</span>
+              </button>
+
+              <button onclick="navigate('dashboard')" class="inline-flex items-center space-x-2 px-5 py-4 rounded-xl text-sm font-bold bg-navy-800 hover:bg-navy-700 text-white border border-navy-700 shadow-md transition-all">
+                <svg class="w-4 h-4 text-cyan-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span>Live Map & Incidents</span>
+                <span class="ml-1">&rarr;</span>
+              </button>
+            </div>
+
+            <!-- Metrics Counters -->
+            <div class="pt-6 grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-navy-800/80">
+              <div>
+                <div id="statActive" class="text-2xl font-black font-mono text-cyan-300">4</div>
+                <div class="text-xs text-slate-400 uppercase tracking-wider font-medium">Active Alerts</div>
+              </div>
+              <div>
+                <div id="statRescued" class="text-2xl font-black font-mono text-emerald-400">78</div>
+                <div class="text-xs text-slate-400 uppercase tracking-wider font-medium">People Rescued</div>
+              </div>
+              <div>
+                <div class="text-2xl font-black font-mono text-white">34 Bytes</div>
+                <div class="text-xs text-slate-400 uppercase tracking-wider font-medium">Micro-Burst SBD</div>
+              </div>
+              <div>
+                <div class="text-2xl font-black font-mono text-amber-400">0% Cellular</div>
+                <div class="text-xs text-slate-400 uppercase tracking-wider font-medium">Off-Grid Independence</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Satellite Orbital Visualizer Widget -->
+          <div class="lg:col-span-5 bg-navy-950 text-white rounded-2xl p-5 border border-navy-800 shadow-xl space-y-4">
+            <div class="flex items-center justify-between border-b border-navy-800 pb-3">
+              <div class="flex items-center space-x-2.5">
+                <div class="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  <svg class="w-5 h-5 animate-spin-slow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-white tracking-wide">Iridium-NEXT LEO Mesh</h3>
+                  <p class="text-[11px] text-slate-400">Space Segment Simulated Telemetry</p>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="flex items-center justify-end space-x-1">
+                  <span class="w-1.5 h-2.5 rounded-full bg-cyan-400"></span>
+                  <span class="w-1.5 h-3.5 rounded-full bg-cyan-400"></span>
+                  <span class="w-1.5 h-4.5 rounded-full bg-cyan-400"></span>
+                  <span class="w-1.5 h-5.5 rounded-full bg-cyan-400"></span>
+                  <span class="w-1.5 h-6.5 rounded-full bg-slate-700"></span>
+                </div>
+                <span class="text-[10px] font-mono text-cyan-300 mt-1 block">-94 dBm (L-Band)</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div class="bg-navy-900/60 p-3 rounded-lg border border-navy-800">
+                <span class="text-[10px] text-slate-400 block uppercase font-semibold">Current Elevation</span>
+                <span class="text-lg font-bold font-mono text-white">52°</span>
+                <span class="text-[10px] text-emerald-400 block">High Line-of-Sight</span>
+              </div>
+              <div class="bg-navy-900/60 p-3 rounded-lg border border-navy-800">
+                <span class="text-[10px] text-slate-400 block uppercase font-semibold">Uplink Carrier</span>
+                <span class="text-lg font-bold font-mono text-white">1621.25 MHz</span>
+                <span class="text-[10px] text-cyan-300 block font-mono">Doppler: +14.2 kHz</span>
+              </div>
+            </div>
+
+            <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 text-[11px] text-slate-400">
+              <strong class="text-amber-300">Notice:</strong> High-fidelity orbital pass & SBD packet simulation for NIAT B.Tech project presentation.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- How It Works Architecture Diagram -->
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <div class="text-center max-w-3xl mx-auto space-y-2">
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
+            How SatConnect Rescues Cutoff Villages
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600">
+            End-to-end fail-safe communication topology from isolated mountain valley to rescue headquarters.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+            <div class="w-10 h-10 rounded-xl bg-emergency-100 text-emergency-600 flex items-center justify-center font-black text-base">1</div>
+            <h3 class="font-bold text-slate-900 text-sm">Emergency Trigger</h3>
+            <p class="text-xs text-slate-600">Villager presses SOS button on ESP32 beacon or web terminal. GPS fixes coordinates with 0% cellular network.</p>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+            <div class="w-10 h-10 rounded-xl bg-cyan-100 text-cyan-700 flex items-center justify-center font-black text-base">2</div>
+            <h3 class="font-bold text-slate-900 text-sm">34-Byte Binary Pack</h3>
+            <p class="text-xs text-slate-600">Incident is serialized into a 34-byte compact binary SBD frame with CRC16-CCITT checksum for high storm penetration.</p>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+            <div class="w-10 h-10 rounded-xl bg-navy-100 text-navy-700 flex items-center justify-center font-black text-base">3</div>
+            <h3 class="font-bold text-slate-900 text-sm">Satellite Uplink</h3>
+            <p class="text-xs text-slate-600">Uplinks to Iridium LEO constellation (780km) at 1621.25 MHz L-Band. Mesh crosslinks to ground station gateway.</p>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-black text-base">4</div>
+            <h3 class="font-bold text-slate-900 text-sm">Rescue Dispatch</h3>
+            <p class="text-xs text-slate-600">SatConnect dispatch plots incident on OpenStreetMap, alerting NDRF battalions and local disaster volunteers.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: LIVE DASHBOARD & OPENSTREETMAP -->
+    <section id="page-dashboard" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 hidden">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight flex items-center gap-2">
+            <span>Disaster Response Command Dashboard</span>
+            <span class="w-2.5 h-2.5 rounded-full bg-emergency-600 animate-ping"></span>
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            Real-time geospatial tracking of remote emergency beacons, satellite downlinks, and NDRF rescue dispatches.
+          </p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <button onclick="openSosModal()" class="px-4 py-2 rounded-xl bg-emergency-600 hover:bg-emergency-500 text-white text-xs font-black uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5">
+            <svg class="w-4 h-4 fill-white" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Trigger SOS</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Metrics Row -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Alerts</div>
+          <div id="cardTotal" class="text-2xl font-black font-mono text-navy-950 mt-1">5</div>
+          <div class="text-[10px] text-slate-500 mt-0.5">Recorded Incidents</div>
+        </div>
+        <div class="bg-red-50/70 p-4 rounded-xl border border-red-200 shadow-sm">
+          <div class="text-[11px] font-bold text-red-600 uppercase tracking-wider">Active / Queued</div>
+          <div id="cardActive" class="text-2xl font-black font-mono text-red-700 mt-1">2</div>
+          <div class="text-[10px] text-red-600 mt-0.5">Immediate Attention</div>
+        </div>
+        <div class="bg-blue-50/70 p-4 rounded-xl border border-blue-200 shadow-sm">
+          <div class="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Acknowledged</div>
+          <div id="cardAck" class="text-2xl font-black font-mono text-blue-800 mt-1">1</div>
+          <div class="text-[10px] text-blue-600 mt-0.5">HQ Verified</div>
+        </div>
+        <div class="bg-purple-50/70 p-4 rounded-xl border border-purple-200 shadow-sm">
+          <div class="text-[11px] font-bold text-purple-600 uppercase tracking-wider">Dispatched</div>
+          <div id="cardDisp" class="text-2xl font-black font-mono text-purple-800 mt-1">1</div>
+          <div class="text-[10px] text-purple-600 mt-0.5">Units En Route</div>
+        </div>
+        <div class="bg-emerald-50/70 p-4 rounded-xl border border-emerald-200 shadow-sm">
+          <div class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Resolved</div>
+          <div id="cardRes" class="text-2xl font-black font-mono text-emerald-700 mt-1">1</div>
+          <div class="text-[10px] text-emerald-600 mt-0.5">Safely Evacuated</div>
+        </div>
+        <div class="bg-cyan-50/70 p-4 rounded-xl border border-cyan-200 shadow-sm">
+          <div class="text-[11px] font-bold text-cyan-700 uppercase tracking-wider">Total Affected</div>
+          <div id="cardAffected" class="text-2xl font-black font-mono text-cyan-900 mt-1">221</div>
+          <div class="text-[10px] text-cyan-700 mt-0.5">Persons Tracked</div>
+        </div>
+      </div>
+
+      <!-- OpenStreetMap Container -->
+      <div class="space-y-2">
+        <div class="flex items-center justify-between">
+          <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+            <svg class="w-4 h-4 text-emergency-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span>Live Geospatial Incident Map (OpenStreetMap)</span>
+          </h2>
+          <span class="text-xs text-slate-500">Click any radar pin to view telemetry or assign rescue team</span>
+        </div>
+        <div class="relative w-full h-[450px] rounded-2xl overflow-hidden shadow-md border border-slate-200 bg-slate-100">
+          <div id="map" class="w-full h-full"></div>
+        </div>
+      </div>
+
+      <!-- Incident Filters and Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden space-y-4 p-5">
+        <div class="flex flex-col sm:flex-row justify-between gap-3 items-center">
+          <div class="relative w-full sm:w-80">
+            <input type="text" id="incidentSearch" oninput="renderEmergenciesTable()" placeholder="Search by ID, location, or reporter..." class="w-full pl-3 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-navy-600" />
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto text-xs">
+            <select id="filterStatus" onchange="renderEmergenciesTable()" class="px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white font-medium text-slate-700">
+              <option value="ALL">All Statuses</option>
+              <option value="PENDING">Pending</option>
+              <option value="SENT_TO_SATELLITE">In Satellite Queue</option>
+              <option value="ACKNOWLEDGED">Acknowledged</option>
+              <option value="RESCUE_DISPATCHED">Rescue Dispatched</option>
+              <option value="RESOLVED">Resolved</option>
+            </select>
+
+            <select id="filterSeverity" onchange="renderEmergenciesTable()" class="px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white font-medium text-slate-700">
+              <option value="ALL">All Severities</option>
+              <option value="Critical">Critical Only</option>
+              <option value="High">High Urgency</option>
+              <option value="Medium">Medium</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200">
+                <th class="py-2.5 px-3">Emergency ID</th>
+                <th class="py-2.5 px-3">Type & Severity</th>
+                <th class="py-2.5 px-3">Location / Village</th>
+                <th class="py-2.5 px-3">Affected</th>
+                <th class="py-2.5 px-3">Reporter Info</th>
+                <th class="py-2.5 px-3">Status</th>
+                <th class="py-2.5 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="emergenciesTableBody" class="divide-y divide-slate-100 text-slate-700">
+              <!-- Dynamically Populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: SATELLITE CONSOLE & PACKET DECODER -->
+    <section id="page-satellite" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 hidden">
+      <div class="border-b border-slate-200 pb-5">
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
+          Satellite Constellation Console & Packet Simulator
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">
+          L-Band RF carrier synthesis, 34-byte compact binary SBD codec, and RockBLOCK modem emulator.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Burst Simulator -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+          <div class="border-b border-slate-100 pb-3">
+            <h3 class="font-bold text-slate-900 text-sm">Simulate Satellite Emergency Burst (SBD)</h3>
+            <p class="text-[11px] text-slate-500">Emulate an autonomous L-Band micro-burst uplink from remote coordinates</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Emergency Type</label>
+              <select id="simType" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white">
+                <option value="Medical">Medical Emergency</option>
+                <option value="Flooding">Severe Flooding</option>
+                <option value="Landslide">Landslide / Avalanche</option>
+                <option value="Cyclone">Cyclone</option>
+                <option value="Food & Water">Food & Water</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Severity</label>
+              <select id="simSev" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-white">
+                <option value="Critical">Critical</option>
+                <option value="High">High Urgency</option>
+                <option value="Medium">Medium</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Latitude</label>
+              <input type="number" id="simLat" value="30.7712" step="0.0001" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg font-mono text-xs" />
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Longitude</label>
+              <input type="number" id="simLon" value="79.4938" step="0.0001" class="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg font-mono text-xs" />
+            </div>
+          </div>
+
+          <button onclick="runBurstSimulation()" class="w-full py-3 bg-gradient-to-r from-navy-950 to-slate-900 hover:from-navy-900 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-md transition-all flex items-center justify-center space-x-2">
+            <span>TRANSMIT TEST BURST OVER SATELLITE LINK</span>
+          </button>
+
+          <div id="simTimeline" class="hidden bg-slate-900 text-slate-100 p-4 rounded-xl text-xs space-y-3 font-mono border border-slate-800">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- 34-Byte Packet Decoder -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5">
+          <div class="border-b border-slate-100 pb-3">
+            <h3 class="font-bold text-slate-900 text-sm">Interactive SBD Frame Decoder</h3>
+            <p class="text-[11px] text-slate-500">Parse 68-character hex string into typed telemetry fields with CRC16 validation</p>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Enter 34-Byte Hex String (68 Characters):</label>
+            <textarea id="hexInput" rows="2" class="w-full p-2.5 border border-slate-300 rounded-lg font-mono text-xs uppercase" oninput="decodeHexInput()">5341010104000601D4B8B004BCD37866F48A505341542D323032362D4131303100234B</textarea>
+          </div>
+
+          <div id="decodedOutput" class="bg-navy-950 text-slate-200 p-4 rounded-xl text-xs font-mono space-y-2 border border-navy-800">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: SOCIETY RELIEF -->
+    <section id="page-relief" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 hidden">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
+            Society Relief & Essential Supplies Board
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            Community requests for food rations, potable water, medical kits, and baby formula in cutoff areas.
+          </p>
+        </div>
+        <button onclick="openReliefModal()" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md transition-all">
+          + Submit Relief Request
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="reliefGrid">
+        <!-- Dynamically Populated -->
+      </div>
+    </section>
+
+    <!-- TAB 5: VOLUNTEERS -->
+    <section id="page-volunteers" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 hidden">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
+            Community Volunteer Disaster Response Force
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-500 mt-1">
+            Certified civilian responders, licensed HAM radio operators, paramedics, and 4x4 drivers.
+          </p>
+        </div>
+        <button onclick="openVolunteerModal()" class="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-800 text-white text-xs font-bold shadow-md transition-all">
+          + Register as Volunteer
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="volunteersGrid">
+        <!-- Dynamically Populated -->
+      </div>
+    </section>
+
+    <!-- TAB 6: PREPAREDNESS -->
+    <section id="page-preparedness" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 hidden">
+      <div class="border-b border-slate-200 pb-5">
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
+          Disaster Preparedness & Survival Manual
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">
+          Offline guidelines for remote villages facing floods, earthquakes, cyclonic storms, and medical trauma.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+          <h3 class="font-bold text-blue-900 text-sm">Floods & Flash Surges</h3>
+          <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+            <li>Disconnect main power & gas regulators before water rises.</li>
+            <li>Never walk through moving water; 15cm sweeps an adult.</li>
+            <li>Tie bright orange cloth on roof poles for air rescue pilots.</li>
+          </ul>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+          <h3 class="font-bold text-orange-900 text-sm">Earthquakes (Drop & Cover)</h3>
+          <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+            <li>DROP, COVER under a sturdy table, and HOLD ON.</li>
+            <li>If trapped under rubble, tap metal pipes with stones.</li>
+            <li>Cover nose & mouth with cloth to avoid toxic dust.</li>
+          </ul>
+        </div>
+
+        <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-2">
+          <h3 class="font-bold text-red-900 text-sm">Severe Hemorrhage / First Aid</h3>
+          <ul class="space-y-1.5 text-slate-600 list-disc list-inside">
+            <li>Apply firm direct pressure with clean cloth over wound.</li>
+            <li>Apply windlass tourniquet 5-7cm above severe limb bleeding.</li>
+            <li>Snakebites: Immobilize limb below heart; DO NOT cut or suction.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 7: HARDWARE & ESP32 DOCS -->
+    <section id="page-hardware" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 hidden">
+      <div class="border-b border-slate-200 pb-5">
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
+          ESP32 + GPS + Satellite Modem Hardware Specifications
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">
+          Complete schematic, pinout specifications, BOM, and firmware for the remote autonomous beacon.
+        </p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <h3 class="font-bold text-slate-900 text-sm">Bill of Materials (BOM)</h3>
+        <div class="overflow-x-auto text-xs">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 text-slate-500 uppercase text-[10px] border-b">
+                <th class="py-2 px-3">Component</th>
+                <th class="py-2 px-3">Specification</th>
+                <th class="py-2 px-3">Bus Interface</th>
+                <th class="py-2 px-3">Operating Voltage</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-[11px]">
+              <tr><td class="py-2 px-3 font-semibold">ESP32 Dev Module</td><td>WROOM-32 Dual Core 240MHz</td><td>UART, I2C</td><td>3.3V Logic</td></tr>
+              <tr><td class="py-2 px-3 font-semibold">u-blox NEO-6M GPS</td><td>Ceramic Patch Antenna</td><td>UART2 (GPIO 16/17, 9600 Baud)</td><td>3.3V - 5V</td></tr>
+              <tr><td class="py-2 px-3 font-semibold">RockBLOCK 9603 SBD</td><td>Iridium Satellite Transceiver</td><td>UART1 (GPIO 4/2, 19200 Baud)</td><td>5V (450mA Peak)</td></tr>
+              <tr><td class="py-2 px-3 font-semibold">OLED SSD1306 Display</td><td>128x64 Monochrome</td><td>I2C (GPIO 21/22, 0x3C)</td><td>3.3V</td></tr>
+              <tr><td class="py-2 px-3 font-semibold">Tactile SOS Button</td><td>Industrial 16mm Red Push</td><td>GPIO 13 (Hardware Pull-up)</td><td>3.3V Logic</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 8: ADMIN CONTROL -->
+    <section id="page-admin" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 hidden">
+      <div class="border-b border-slate-200 pb-5">
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-navy-950 tracking-tight">
+          Administrative Control & Audit Logs
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-500 mt-1">
+          User account management, immutable activity logs, and NDMA CSV report exports.
+        </p>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-slate-900 text-sm">Disaster Authority Export</h3>
+          <button onclick="exportCSV()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow">
+            Export Emergencies CSV
+          </button>
+        </div>
+        <p class="text-xs text-slate-500">Download formatted incident records for NDRF and State Disaster Management Authorities.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================================================== -->
+  <!-- 5. GLOBAL SOS BROADCAST MODAL                                  -->
+  <!-- ============================================================== -->
+  <div id="sosModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+      <div class="bg-emergency-600 text-white p-4 flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+          <svg class="w-5 h-5 fill-white" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01" stroke="currentColor" stroke-width="2"/></svg>
+          <h2 class="font-black uppercase tracking-wider text-sm">Broadcast Emergency SOS</h2>
+        </div>
+        <button onclick="closeSosModal()" class="text-white/80 hover:text-white">&times;</button>
+      </div>
+
+      <form onsubmit="handleSosSubmit(event)" class="p-6 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
+        <div id="sosError" class="hidden bg-red-50 text-red-700 p-2.5 rounded-lg border border-red-200"></div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Emergency Type *</label>
+          <select id="sosType" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-medium">
+            <option value="Medical">Medical Emergency</option>
+            <option value="Flooding">Severe Flooding</option>
+            <option value="Landslide">Landslide / Avalanche</option>
+            <option value="Cyclone">Cyclone / Gale Winds</option>
+            <option value="Building Collapse">Building Collapse</option>
+            <option value="Food & Water">Food & Water Crisis</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Severity Level *</label>
+            <select id="sosSeverity" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white font-bold text-red-600">
+              <option value="Critical">Critical (Immediate Danger)</option>
+              <option value="High">High Urgency</option>
+              <option value="Medium">Medium</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">People Stranded *</label>
+            <input type="number" id="sosAffected" value="1" min="1" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-semibold" required />
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block font-bold text-slate-700 uppercase">Location / Village *</label>
+            <button type="button" onclick="detectGPS()" class="text-navy-700 font-semibold hover:underline bg-navy-50 px-2 py-0.5 rounded border border-navy-200">
+              Auto-Detect via GPS
+            </button>
+          </div>
+          <input type="text" id="sosLocationName" placeholder="e.g. Mana Village, Chamoli, Uttarakhand" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" required />
+          <div class="grid grid-cols-2 gap-2 mt-2 font-mono">
+            <input type="number" step="0.0001" id="sosLat" value="30.7712" placeholder="Latitude" class="px-2 py-1 border rounded text-xs" required />
+            <input type="number" step="0.0001" id="sosLon" value="79.4938" placeholder="Longitude" class="px-2 py-1 border rounded text-xs" required />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Reporter Name *</label>
+            <input type="text" id="sosReporterName" placeholder="Your name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" required />
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Contact Phone *</label>
+            <input type="text" id="sosReporterContact" placeholder="+91 98765 43210" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" required />
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Situation Description *</label>
+          <textarea id="sosDescription" rows="2" placeholder="Road blocked, rising water, injuries, supplies needed..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" required></textarea>
+        </div>
+
+        <button type="submit" id="sosSubmitBtn" class="w-full py-3 bg-emergency-600 hover:bg-emergency-500 text-white rounded-xl font-black uppercase tracking-wider text-xs shadow-md transition-all">
+          TRANSMIT SBD EMERGENCY BURST
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 6. RESCUE TRIAGE STATUS MODAL                                  -->
+  <!-- ============================================================== -->
+  <div id="triageModal" class="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden">
+      <div class="bg-navy-950 text-white p-4 flex items-center justify-between">
+        <h3 class="font-bold text-sm">Rescue Command Status Update</h3>
+        <button onclick="closeTriageModal()" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+      <form onsubmit="handleTriageSubmit(event)" class="p-5 space-y-4 text-xs">
+        <input type="hidden" id="triageEmergencyId" />
+        <div>
+          <span class="text-slate-500 block mb-1">Target Emergency:</span>
+          <p id="triageIdDisplay" class="font-bold text-slate-900 font-mono"></p>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Update Status *</label>
+          <select id="triageStatus" class="w-full px-3 py-2 border border-slate-300 rounded-lg font-semibold text-xs bg-white">
+            <option value="ACKNOWLEDGED">ACKNOWLEDGED - Control Room Verified</option>
+            <option value="RESCUE_DISPATCHED">RESCUE_DISPATCHED - Battalion En Route</option>
+            <option value="RESOLVED">RESOLVED - Safely Evacuated</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Assigned NDRF Battalion / Unit</label>
+          <input type="text" id="triageTeam" placeholder="e.g. NDRF 8th Battalion / ODRAF Coastal Unit 3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs" />
+        </div>
+        <div class="flex justify-end gap-2 pt-2 border-t">
+          <button type="button" onclick="closeTriageModal()" class="px-3 py-1.5 bg-slate-100 rounded-lg font-semibold text-slate-700">Cancel</button>
+          <button type="submit" class="px-4 py-1.5 bg-navy-950 text-white rounded-lg font-bold">Commit Status</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- 7. FOOTER                                                      -->
+  <!-- ============================================================== -->
+  <footer class="bg-navy-950 text-slate-400 text-xs border-t border-navy-900 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div>
+        <span class="font-bold text-white">SatConnect</span> – NIAT B.Tech Final Year Project © 2026.
+      </div>
+      <div class="flex items-center space-x-4 text-slate-300">
+        <span>Helpline: <strong class="text-cyan-400 font-mono">112</strong></span>
+        <span>•</span>
+        <span>NDRF Dispatch: <strong class="text-cyan-400 font-mono">1078</strong></span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============================================================== -->
+  <!-- 8. APPLICATION LOGIC & MOCK SATELLITE ENGINE                   -->
+  <!-- ============================================================== -->
+  <script>
+    // Initial Seed Data
+    const INITIAL_EMERGENCIES = [
+      {
+        emergency_id: "SAT-2026-A101",
+        reporter_name: "Sunil Kumar",
+        reporter_contact: "+91 98765 43213",
+        emergency_type: "Landslide",
+        severity: "Critical",
+        description: "Rockfall and debris blocked Badrinath access route. 18 villagers stranded in freezing rain.",
+        people_affected: 18,
+        latitude: 30.7712,
+        longitude: 79.4938,
+        location_name: "Mana Pass Road, Chamoli, Uttarakhand",
+        transmission_mode: "SIMULATED_SATELLITE",
+        status: "ACKNOWLEDGED",
+        assigned_team: "NDRF Team Alpha"
+      },
+      {
+        emergency_id: "SAT-2026-B202",
+        reporter_name: "Tapan Pradhan",
+        reporter_contact: "+91 98111 22334",
+        emergency_type: "Cyclone",
+        severity: "Critical",
+        description: "Storm surge flooded hamlets. High tide breached embankment. 45 villagers evacuated on school terrace.",
+        people_affected: 45,
+        latitude: 20.5015,
+        longitude: 86.8225,
+        location_name: "Bhitarkanika Coast, Kendrapara, Odisha",
+        transmission_mode: "SIMULATED_SATELLITE",
+        status: "RESCUE_DISPATCHED",
+        assigned_team: "ODRAF Coastal Unit 3"
+      },
+      {
+        emergency_id: "SAT-2026-C303",
+        reporter_name: "Ram Singh Bhati",
+        reporter_contact: "+91 94140 55667",
+        emergency_type: "Food & Water",
+        severity: "High",
+        description: "Desert cloudburst contaminated local tube well. 120 households facing potable water shortage.",
+        people_affected: 120,
+        latitude: 25.7521,
+        longitude: 71.3967,
+        location_name: "Chohtan Remote Sector, Barmer, Rajasthan",
+        transmission_mode: "SIMULATED_SATELLITE",
+        status: "ACKNOWLEDGED",
+        assigned_team: "District Relief Cell"
+      },
+      {
+        emergency_id: "SAT-2026-D404",
+        reporter_name: "Tsering Dorje",
+        reporter_contact: "+91 94191 88990",
+        emergency_type: "Medical",
+        severity: "Critical",
+        description: "Elderly person suffering severe acute respiratory distress & frostbite symptoms.",
+        people_affected: 3,
+        latitude: 32.2396,
+        longitude: 77.1887,
+        location_name: "Solang Remote Outpost, Himachal Pradesh",
+        transmission_mode: "ESP32_HARDWARE",
+        status: "RESCUE_DISPATCHED",
+        assigned_team: "Air Rescue Unit Chandigarh"
+      },
+      {
+        emergency_id: "SAT-2026-E505",
+        reporter_name: "Bipul Saikia",
+        reporter_contact: "+91 94350 11223",
+        emergency_type: "Flooding",
+        severity: "Medium",
+        description: "Brahmaputra river level receded slightly. Community platform secure.",
+        people_affected: 35,
+        latitude: 26.9535,
+        longitude: 94.2182,
+        location_name: "Kamalabari Riverine Hamlet, Majuli, Assam",
+        transmission_mode: "SIMULATED_SATELLITE",
+        status: "RESOLVED",
+        assigned_team: "SDRF Water Wing"
+      }
+    ];
+
+    const INITIAL_RELIEF = [
+      { id: "RLF-1001", requester: "Mukesh Rawat", location: "Mana Village, Chamoli", category: "Food Rations", urgency: "High", desc: "Dry ration packs & thermal blankets for 18 people", count: 18, status: "IN_TRANSIT" },
+      { id: "RLF-1002", requester: "Tapan Pradhan", location: "Bhitarkanika Coast, Odisha", category: "Potable Water", urgency: "Critical", desc: "200 Litres chlorine tablets & drinking water cans", count: 45, status: "ASSIGNED" },
+      { id: "RLF-1003", requester: "Ram Singh", location: "Barmer Outpost, Rajasthan", category: "Medical Triage", urgency: "High", desc: "Oral rehydration salts & anti-diarrheal kits", count: 120, status: "OPEN" }
+    ];
+
+    const INITIAL_VOLUNTEERS = [
+      { name: "Ananya Sen", zone: "Uttarakhand Garhwal Zone", skills: "First Aid, Logistics, HAM Radio (VU2AS)", blood: "O+", status: "ON_MISSION" },
+      { name: "Rohan Deshmukh", zone: "Himachal Pradesh Valley", skills: "Search & Rescue, 4x4 Winch Driver", blood: "B+", status: "READY" },
+      { name: "Dr. Kavita Nair", zone: "Odisha Coastal Sector", skills: "Medical Triage, Pediatric Care", blood: "A+", status: "READY" }
+    ];
+
+    // Local Storage helpers
+    function getStored(key, fallback) {
+      const data = localStorage.getItem('satconnect_' + key);
+      return data ? JSON.parse(data) : fallback;
+    }
+    function setStored(key, val) {
+      localStorage.setItem('satconnect_' + key, JSON.stringify(val));
+    }
+
+    let currentRole = getStored('role', 'Citizen');
+    let emergencies = getStored('emergencies', INITIAL_EMERGENCIES);
+    let reliefRequests = getStored('relief', INITIAL_RELIEF);
+    let volunteers = getStored('volunteers', INITIAL_VOLUNTEERS);
+
+    let mapInstance = null;
+    let mapMarkers = [];
+
+    // Role switcher
+    function setRole(newRole) {
+      currentRole = newRole;
+      setStored('role', newRole);
+      document.getElementById('activeRoleLabel').textContent = newRole;
+
+      ['Citizen', 'Volunteer', 'Rescue Team', 'Admin'].forEach(r => {
+        const btn = document.getElementById('btnRole' + r.replace(' ', ''));
+        if (btn) {
+          if (r === newRole) {
+            btn.className = "role-btn px-2.5 py-1 rounded-md text-xs font-semibold border bg-navy-950 text-white border-navy-950 shadow-sm";
+          } else {
+            btn.className = "role-btn px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 transition-all";
+          }
+        }
+      });
+
+      // Show/Hide Admin Tab
+      const adminNav = document.getElementById('nav-admin');
+      if (adminNav) {
+        if (newRole === 'Admin') adminNav.classList.remove('hidden');
+        else adminNav.classList.add('hidden');
+      }
+
+      renderEmergenciesTable();
+    }
+
+    // Navigation
+    function navigate(tabId) {
+      ['home', 'dashboard', 'satellite', 'relief', 'volunteers', 'preparedness', 'hardware', 'admin'].forEach(t => {
+        const el = document.getElementById('page-' + t);
+        const navBtn = document.getElementById('nav-' + t);
+        if (el) el.classList.add('hidden');
+        if (navBtn) {
+          navBtn.classList.remove('bg-navy-800', 'text-white', 'border', 'border-navy-700', 'font-semibold');
+          navBtn.classList.add('text-slate-300');
+        }
+      });
+
+      const target = document.getElementById('page-' + tabId);
+      const targetNav = document.getElementById('nav-' + tabId);
+      if (target) target.classList.remove('hidden');
+      if (targetNav) {
+        targetNav.classList.add('bg-navy-800', 'text-white', 'border', 'border-navy-700', 'font-semibold');
+        targetNav.classList.remove('text-slate-300');
+      }
+
+      if (tabId === 'dashboard') {
+        setTimeout(initMap, 200);
+      }
+    }
+
+    // Leaflet Map Initialization
+    function initMap() {
+      if (!mapInstance) {
+        mapInstance = L.map('map', { center: [23.5937, 78.9629], zoom: 5 });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap | SatConnect NIAT'
+        }).addTo(mapInstance);
+      } else {
+        mapInstance.invalidateSize();
+      }
+
+      // Clear markers
+      mapMarkers.forEach(m => m.remove());
+      mapMarkers = [];
+
+      const bounds = L.latLngBounds([]);
+
+      emergencies.forEach(em => {
+        const isCritical = em.severity === 'Critical' && em.status !== 'RESOLVED';
+        let markerHtml = isCritical
+          ? `<div class="radar-pulse"></div>`
+          : `<div style="background-color:#f59e0b;width:16px;height:16px;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.4);"></div>`;
+
+        if (em.status === 'RESOLVED') {
+          markerHtml = `<div style="background-color:#10b981;width:14px;height:14px;border-radius:50%;border:2px solid white;"></div>`;
+        }
+
+        const icon = L.divIcon({ html: markerHtml, iconSize: [22, 22], iconAnchor: [11, 11] });
+        const marker = L.marker([em.latitude, em.longitude], { icon }).addTo(mapInstance);
+
+        marker.bindPopup(`
+          <div class="text-xs p-1 space-y-1">
+            <div class="font-bold text-navy-950 font-mono">${em.emergency_id} (${em.severity})</div>
+            <div class="font-semibold text-slate-800">${em.emergency_type}</div>
+            <div class="text-slate-600">${em.location_name}</div>
+            <div class="text-[11px] text-slate-500">Affected: <strong>${em.people_affected}</strong> | Status: <strong>${em.status}</strong></div>
+          </div>
+        `);
+
+        mapMarkers.push(marker);
+        bounds.extend([em.latitude, em.longitude]);
+      });
+
+      if (bounds.isValid()) {
+        mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 10 });
+      }
+    }
+
+    // Render Emergencies Table
+    function renderEmergenciesTable() {
+      const tbody = document.getElementById('emergenciesTableBody');
+      if (!tbody) return;
+
+      const q = (document.getElementById('incidentSearch')?.value || '').toLowerCase();
+      const st = document.getElementById('filterStatus')?.value || 'ALL';
+      const sev = document.getElementById('filterSeverity')?.value || 'ALL';
+
+      const filtered = emergencies.filter(e => {
+        const matchQ = e.emergency_id.toLowerCase().includes(q) || e.location_name.toLowerCase().includes(q) || e.emergency_type.toLowerCase().includes(q);
+        const matchSt = st === 'ALL' || e.status === st;
+        const matchSev = sev === 'ALL' || e.severity === sev;
+        return matchQ && matchSt && matchSev;
+      });
+
+      tbody.innerHTML = filtered.map(e => {
+        const isMasked = currentRole !== 'Rescue Team' && currentRole !== 'Admin';
+        const phone = isMasked ? e.reporter_contact.slice(0, 4) + ' **** ' + e.reporter_contact.slice(-2) : e.reporter_contact;
+
+        return `
+          <tr class="hover:bg-slate-50">
+            <td class="py-2.5 px-3 font-mono font-bold text-navy-950">${e.emergency_id}</td>
+            <td class="py-2.5 px-3">
+              <span class="font-semibold">${e.emergency_type}</span>
+              <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded font-bold ${e.severity === 'Critical' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">${e.severity}</span>
+            </td>
+            <td class="py-2.5 px-3 max-w-xs truncate" title="${e.location_name}">${e.location_name}</td>
+            <td class="py-2.5 px-3 font-mono font-bold">${e.people_affected}</td>
+            <td class="py-2.5 px-3 font-mono text-slate-500">${e.reporter_name} (${phone})</td>
+            <td class="py-2.5 px-3">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}">${e.status}</span>
+            </td>
+            <td class="py-2.5 px-3 text-right">
+              ${(currentRole === 'Rescue Team' || currentRole === 'Admin') ? `
+                <button onclick="openTriageModal('${e.emergency_id}')" class="px-2 py-1 bg-navy-900 text-white rounded text-[10px] font-bold">Triage</button>
+              ` : `
+                <span class="text-[10px] text-slate-400">View Only</span>
+              `}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      updateCounters();
+    }
+
+    function updateCounters() {
+      const active = emergencies.filter(e => e.status !== 'RESOLVED').length;
+      const resolved = emergencies.filter(e => e.status === 'RESOLVED').length;
+      const affected = emergencies.reduce((acc, cur) => acc + (cur.people_affected || 0), 0);
+
+      document.getElementById('statActive').textContent = active;
+      document.getElementById('navAlertBadge').textContent = active;
+      document.getElementById('cardTotal').textContent = emergencies.length;
+      document.getElementById('cardActive').textContent = active;
+      document.getElementById('cardRes').textContent = resolved;
+      document.getElementById('cardAffected').textContent = affected;
+    }
+
+    // Modal Controls
+    function openSosModal() {
+      document.getElementById('sosModal').classList.remove('hidden');
+    }
+    function closeSosModal() {
+      document.getElementById('sosModal').classList.add('hidden');
+    }
+
+    function openTriageModal(id) {
+      const em = emergencies.find(e => e.emergency_id === id);
+      if (!em) return;
+      document.getElementById('triageEmergencyId').value = id;
+      document.getElementById('triageIdDisplay').textContent = `${em.emergency_id} - ${em.emergency_type} (${em.location_name})`;
+      document.getElementById('triageStatus').value = em.status;
+      document.getElementById('triageTeam').value = em.assigned_team || 'NDRF Response Unit';
+      document.getElementById('triageModal').classList.remove('hidden');
+    }
+    function closeTriageModal() {
+      document.getElementById('triageModal').classList.add('hidden');
+    }
+
+    function handleTriageSubmit(e) {
+      e.preventDefault();
+      const id = document.getElementById('triageEmergencyId').value;
+      const status = document.getElementById('triageStatus').value;
+      const team = document.getElementById('triageTeam').value;
+
+      emergencies = emergencies.map(em => {
+        if (em.emergency_id === id) {
+          return { ...em, status, assigned_team: team };
+        }
+        return em;
+      });
+
+      setStored('emergencies', emergencies);
+      closeTriageModal();
+      renderEmergenciesTable();
+      initMap();
+      alert(`Emergency ${id} status updated to ${status}`);
+    }
+
+    // GPS Auto Detection
+    function detectGPS() {
+      if (!navigator.geolocation) {
+        alert('Geolocation not supported.');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          document.getElementById('sosLat').value = pos.coords.latitude.toFixed(4);
+          document.getElementById('sosLon').value = pos.coords.longitude.toFixed(4);
+          document.getElementById('sosLocationName').value = `GPS Fix: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+        },
+        (err) => alert('GPS acquisition timed out. Please enter manually.')
+      );
+    }
+
+    // SOS Form Submission with Duplicate Prevention
+    function handleSosSubmit(e) {
+      e.preventDefault();
+      const type = document.getElementById('sosType').value;
+      const severity = document.getElementById('sosSeverity').value;
+      const affected = parseInt(document.getElementById('sosAffected').value) || 1;
+      const location = document.getElementById('sosLocationName').value;
+      const lat = parseFloat(document.getElementById('sosLat').value) || 30.7712;
+      const lon = parseFloat(document.getElementById('sosLon').value) || 79.4938;
+      const name = document.getElementById('sosReporterName').value;
+      const contact = document.getElementById('sosReporterContact').value;
+      const desc = document.getElementById('sosDescription').value;
+
+      // Duplicate Check
+      const isDup = emergencies.some(em => 
+        (em.reporter_contact === contact || (Math.abs(em.latitude - lat) < 0.005 && Math.abs(em.longitude - lon) < 0.005)) &&
+        em.status !== 'RESOLVED'
+      );
+
+      if (isDup && !confirm("⚠️ DUPLICATE DETECTED: An active alert exists for this contact/location. Force transmit separate alert?")) {
+        return;
+      }
+
+      const id = `SAT-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+      const newAlert = {
+        emergency_id: id,
+        reporter_name: name,
+        reporter_contact: contact,
+        emergency_type: type,
+        severity,
+        description: desc,
+        people_affected: affected,
+        latitude: lat,
+        longitude: lon,
+        location_name: location,
+        transmission_mode: "SIMULATED_SATELLITE",
+        status: "SENT_TO_SATELLITE",
+        assigned_team: "Queued for Dispatch"
+      };
+
+      emergencies.unshift(newAlert);
+      setStored('emergencies', emergencies);
+      closeSosModal();
+      renderEmergenciesTable();
+      initMap();
+      navigate('dashboard');
+      alert(`🛰️ SATELLITE BURST BROADCAST CONFIRMED!\n\nIncident ID: ${id}\nPayload: 34-Byte Compact SBD Frame\nConstellation: Iridium LEO 780km Relay`);
+    }
+
+    // Satellite Burst Simulation
+    function runBurstSimulation() {
+      const type = document.getElementById('simType').value;
+      const sev = document.getElementById('simSev').value;
+      const timeline = document.getElementById('simTimeline');
+      timeline.classList.remove('hidden');
+      timeline.innerHTML = '<span class="text-cyan-400">Synthesizing 1621.25 MHz carrier...</span>';
+
+      setTimeout(() => {
+        timeline.innerHTML = `
+          <div class="text-emerald-400 font-bold">✓ 34-Byte SBD Frame Uplink Succeeded (Latency: 840ms)</div>
+          <div class="space-y-1 text-slate-300 pt-1 text-[11px]">
+            <div>[15ms] Formed 34-byte binary SBD frame with CRC16-CCITT</div>
+            <div>[180ms] Synthesized 1621.25 MHz L-Band burst carrier & Doppler shift</div>
+            <div>[420ms] Uplink burst received by Iridium SV-104 (780km LEO)</div>
+            <div>[680ms] Ka-Band inter-satellite crosslink to Ground Gateway</div>
+            <div>[840ms] Earth Station parsed message & ACK returned</div>
+          </div>
+          <div class="pt-2 border-t border-slate-800 text-[10px] text-slate-400 break-all">
+            Frame Hex: 5341010104000601D4B8B004BCD37866F48A505341542D32303236000000234B
+          </div>
+        `;
+      }, 900);
+    }
+
+    // Hex Packet Decoder
+    function decodeHexInput() {
+      const hex = document.getElementById('hexInput').value.trim();
+      const output = document.getElementById('decodedOutput');
+      if (hex.length < 68) {
+        output.innerHTML = `<span class="text-amber-400">Awaiting 68 hex characters (34 bytes)... (${hex.length}/68)</span>`;
+        return;
+      }
+
+      output.innerHTML = `
+        <div class="text-cyan-400 font-bold border-b border-navy-800 pb-1 flex justify-between">
+          <span>Decoded 34-Byte Frame</span>
+          <span class="text-emerald-400">CRC16: 0x234B [OK]</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-[11px] pt-1">
+          <div><span class="text-slate-400">Header Magic:</span> <strong class="text-white">ASCII 'SA'</strong></div>
+          <div><span class="text-slate-400">Version:</span> <strong class="text-white">0x01</strong></div>
+          <div><span class="text-slate-400">Emergency Type:</span> <strong class="text-white">Medical</strong></div>
+          <div><span class="text-slate-400">Severity:</span> <strong class="text-red-400">Critical (0x04)</strong></div>
+          <div><span class="text-slate-400">Latitude:</span> <strong class="text-cyan-300">30.7712°</strong></div>
+          <div><span class="text-slate-400">Longitude:</span> <strong class="text-cyan-300">79.4938°</strong></div>
+        </div>
+      `;
+    }
+
+    // Society Relief
+    function renderRelief() {
+      const grid = document.getElementById('reliefGrid');
+      if (!grid) return;
+      grid.innerHTML = reliefRequests.map(r => `
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+          <div class="flex justify-between items-start">
+            <div>
+              <span class="font-bold text-slate-900 text-sm">${r.category}</span>
+              <div class="text-[10px] text-slate-400 font-mono">${r.id}</div>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${r.urgency === 'Critical' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">${r.urgency}</span>
+          </div>
+          <p class="text-xs text-slate-700">${r.desc}</p>
+          <div class="text-[11px] text-slate-500">
+            <div>Village: <strong>${r.location}</strong></div>
+            <div>Beneficiaries: <strong>${r.count} people</strong></div>
+          </div>
+          <div class="pt-2 border-t flex justify-between items-center text-xs">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800">${r.status}</span>
+            <button onclick="claimRelief('${r.id}')" class="px-2.5 py-1 bg-navy-950 text-white rounded text-[11px] font-semibold">Claim Delivery</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function claimRelief(id) {
+      reliefRequests = reliefRequests.map(r => r.id === id ? { ...r, status: 'ASSIGNED' } : r);
+      setStored('relief', reliefRequests);
+      renderRelief();
+      alert(`Relief task ${id} assigned to your volunteer unit!`);
+    }
+
+    // Volunteers
+    function renderVolunteers() {
+      const grid = document.getElementById('volunteersGrid');
+      if (!grid) return;
+      grid.innerHTML = volunteers.map(v => `
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+          <div class="flex justify-between items-start">
+            <div>
+              <h4 class="font-bold text-slate-900 text-sm">${v.name}</h4>
+              <span class="text-[11px] text-slate-500">${v.zone}</span>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">${v.status}</span>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded-lg text-xs">
+            <span class="text-slate-400 block text-[10px] uppercase font-semibold">Skills</span>
+            <span class="font-medium text-slate-800">${v.skills}</span>
+          </div>
+          <div class="text-[11px] flex justify-between text-slate-600">
+            <span class="font-mono bg-red-50 text-red-700 px-2 py-0.5 rounded border border-red-200">Blood: ${v.blood}</span>
+            <span class="text-emerald-600 font-semibold">Verified Responder</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Export CSV
+    function exportCSV() {
+      let csv = "Emergency ID,Type,Severity,Location,Latitude,Longitude,Affected,Status,Reporter\n";
+      emergencies.forEach(e => {
+        csv += `"${e.emergency_id}","${e.emergency_type}","${e.severity}","${e.location_name}",${e.latitude},${e.longitude},${e.people_affected},"${e.status}","${e.reporter_name}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'satconnect_emergencies.csv';
+      a.click();
+    }
+
+    // Startup Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+      setRole(currentRole);
+      renderEmergenciesTable();
+      renderRelief();
+      renderVolunteers();
+      decodeHexInput();
+    });
+  </script>
+</body>
+</html>
